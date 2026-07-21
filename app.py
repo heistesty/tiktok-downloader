@@ -33,27 +33,11 @@ threading.Thread(target=cleanup_old_files, daemon=True).start()
 
 
 def base_ydl_opts():
-    """Shared yt-dlp options. Pulls cookies from Chrome so requests look like
-    they're coming from a real logged-in browser session -- TikTok has been
-    blocking plain/anonymous requests more aggressively lately, and this is
-    the most reliable workaround. Falls back to no cookies if Chrome's
-    cookie store can't be read (e.g. Chrome is open and locking the file)."""
-    opts = {
+    """Shared yt-dlp options."""
+    return {
         "quiet": True,
         "no_warnings": True,
     }
-    try:
-        # Quick check that we can actually read Chrome's cookie DB.
-        import sqlite3
-        import glob
-        chrome_cookie_paths = glob.glob(
-            os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data\*\Cookies")
-        )
-        if chrome_cookie_paths:
-            opts["cookiesfrombrowser"] = ("chrome",)
-    except Exception:
-        pass
-    return opts
 
 
 @app.route("/")

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>TikTok HD Downloader</title>
+<title>Video Downloader — TikTok &amp; Twitter/X</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root {
@@ -112,15 +112,120 @@
     color: var(--muted);
   }
   .status.error { color: var(--accent); }
+  .search-results {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .result-card {
+    display: flex;
+    gap: 12px;
+    background: var(--card);
+    border-radius: 10px;
+    padding: 10px;
+    align-items: center;
+  }
+  .result-card img {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .result-card .info {
+    flex: 1;
+    min-width: 0;
+  }
+  .result-card .info .r-title {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .result-card .info .r-meta {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .result-card button {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+  }
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 10;
+  }
+  .modal-overlay.visible { display: flex; }
+  .modal {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 20px;
+    max-width: 420px;
+    width: 100%;
+  }
+  .modal video {
+    width: 100%;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    background: black;
+  }
+  .modal .adjust-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .modal .adjust-row input[type="number"] {
+    width: 80px;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    background: #111;
+    color: var(--text);
+  }
+  .modal .modal-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .modal .modal-actions button {
+    flex: 1;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .modal .btn-secondary {
+    background: #333;
+    color: var(--text);
+  }
 </style>
 </head>
 <body>
   <div class="container">
-    <h1>TikTok HD Downloader</h1>
-    <p class="subtitle">Paste a TikTok link to download the video, no watermark.</p>
+    <h1>Video Downloader</h1>
+    <p class="subtitle">Search TikTok, or paste a TikTok/Twitter (X) link, to download HD videos.</p>
 
     <div class="input-row">
-      <input type="text" id="urlInput" placeholder="Paste TikTok link here...">
+      <input type="text" id="searchInput" placeholder="Search TikTok, e.g. tesco haul...">
+      <input type="number" id="searchCount" value="10" min="1" max="30" style="width:70px; flex:none;" title="Number of results">
+      <button id="searchBtn">Search</button>
+    </div>
+
+    <div class="status" id="searchStatus"></div>
+    <div id="searchResults" class="search-results"></div>
+
+    <hr style="border-color:#333; margin: 28px 0;">
+
+    <div class="input-row">
+      <input type="text" id="urlInput" placeholder="...or paste a TikTok/Twitter link here">
       <button id="goBtn">Fetch</button>
     </div>
 
@@ -131,6 +236,24 @@
       <h3 id="title"></h3>
       <div class="meta" id="meta"></div>
       <button id="downloadBtn" class="download-btn" style="width:100%; border:none;">Download HD Video</button>
+      <button id="autoClipBtnManual" style="width:100%; margin-top:8px; padding:12px; border-radius:8px; border:none; background:#333; color:var(--text); font-weight:600;">Auto-Clip (cart detection)</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="clipModal">
+    <div class="modal">
+      <h3 style="margin-top:0;">Suggested clip</h3>
+      <video id="clipPreview" controls></video>
+      <div id="clipInfo" style="font-size:0.8rem; color:var(--muted); margin-bottom:10px;"></div>
+      <div class="adjust-row">
+        <label style="font-size:0.85rem;">Adjust start (s):</label>
+        <input type="number" id="adjustTimestamp" step="0.5">
+        <button id="recutBtn" style="padding:8px 14px; border-radius:8px; border:none; background:#333; color:var(--text);">Re-cut</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="closeModalBtn">Cancel</button>
+        <a id="confirmDownloadBtn" class="download-btn" style="flex:1; text-align:center;">Download this clip</a>
+      </div>
     </div>
   </div>
 
@@ -145,6 +268,116 @@ const metaEl = document.getElementById('meta');
 const downloadBtn = document.getElementById('downloadBtn');
 
 let currentUrl = '';
+
+const searchInput = document.getElementById('searchInput');
+const searchCount = document.getElementById('searchCount');
+const searchBtn = document.getElementById('searchBtn');
+const searchStatus = document.getElementById('searchStatus');
+const searchResults = document.getElementById('searchResults');
+
+searchBtn.addEventListener('click', runSearch);
+searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') runSearch(); });
+
+async function runSearch() {
+  const query = searchInput.value.trim();
+  const count = parseInt(searchCount.value, 10) || 10;
+  if (!query) return;
+
+  searchResults.innerHTML = '';
+  setSearchStatus('Searching...');
+  searchBtn.disabled = true;
+
+  try {
+    const res = await fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, count })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Search failed');
+
+    if (!data.videos || data.videos.length === 0) {
+      setSearchStatus('No results found.');
+      return;
+    }
+
+    setSearchStatus(`Found ${data.videos.length} video(s).`);
+    renderResults(data.videos);
+  } catch (err) {
+    setSearchStatus(err.message, true);
+  } finally {
+    searchBtn.disabled = false;
+  }
+}
+
+function renderResults(videos) {
+  searchResults.innerHTML = '';
+  videos.forEach((v) => {
+    const card = document.createElement('div');
+    card.className = 'result-card';
+
+    const img = document.createElement('img');
+    img.src = v.thumbnail || '';
+    img.alt = '';
+
+    const info = document.createElement('div');
+    info.className = 'info';
+    const title = document.createElement('div');
+    title.className = 'r-title';
+    title.textContent = v.title || 'TikTok video';
+    const meta = document.createElement('div');
+    meta.className = 'r-meta';
+    meta.textContent = v.uploader ? `@${v.uploader}` : '';
+    info.appendChild(title);
+    info.appendChild(meta);
+
+    const btn = document.createElement('button');
+    btn.textContent = 'Download';
+    btn.addEventListener('click', () => downloadFromCard(v.url, btn));
+
+    const clipBtn = document.createElement('button');
+    clipBtn.textContent = 'Auto-Clip';
+    clipBtn.style.background = '#333';
+    clipBtn.style.color = 'var(--text)';
+    clipBtn.style.border = 'none';
+    clipBtn.style.borderRadius = '8px';
+    clipBtn.addEventListener('click', () => runAutoClip(v.url, clipBtn));
+
+    card.appendChild(img);
+    card.appendChild(info);
+    card.appendChild(btn);
+    card.appendChild(clipBtn);
+    searchResults.appendChild(card);
+  });
+}
+
+async function downloadFromCard(url, btn) {
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = 'Downloading...';
+
+  try {
+    const res = await fetch('/api/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Download failed');
+    window.location.href = data.download_url;
+    btn.textContent = 'Done';
+  } catch (err) {
+    btn.textContent = 'Failed';
+    setSearchStatus(err.message, true);
+  } finally {
+    setTimeout(() => { btn.disabled = false; btn.textContent = originalText; }, 2000);
+  }
+}
+
+function setSearchStatus(msg, isError = false) {
+  searchStatus.textContent = msg;
+  searchStatus.className = 'status' + (isError ? ' error' : '');
+}
 
 // Auto-fetch info when a link is pasted
 urlInput.addEventListener('paste', () => {
@@ -211,6 +444,95 @@ function setStatus(msg, isError = false) {
   statusEl.textContent = msg;
   statusEl.className = 'status' + (isError ? ' error' : '');
 }
+
+// ---- Auto-clip (cart detection) modal logic ----
+
+const clipModal = document.getElementById('clipModal');
+const clipPreview = document.getElementById('clipPreview');
+const clipInfo = document.getElementById('clipInfo');
+const adjustTimestamp = document.getElementById('adjustTimestamp');
+const recutBtn = document.getElementById('recutBtn');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const confirmDownloadBtn = document.getElementById('confirmDownloadBtn');
+const autoClipBtnManual = document.getElementById('autoClipBtnManual');
+
+let currentSourceFile = null;
+
+autoClipBtnManual.addEventListener('click', () => {
+  if (!currentUrl) return;
+  runAutoClip(currentUrl, autoClipBtnManual);
+});
+
+async function runAutoClip(url, btn) {
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Detecting...';
+
+  try {
+    const res = await fetch('/api/auto-clip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Auto-clip failed');
+
+    if (data.error) {
+      // Detection ran but found nothing confident
+      alert(data.error + ' You can still download the full video instead.');
+      currentSourceFile = data.source_file || null;
+      return;
+    }
+
+    currentSourceFile = data.clip_url.split('/').pop(); // not used directly, kept for re-cut fallback
+    openClipModal(data);
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+function openClipModal(data) {
+  clipPreview.src = data.clip_url;
+  clipInfo.textContent = `Detected around ${data.detected_timestamp.toFixed(1)}s (video length ~${data.duration.toFixed(0)}s)`;
+  adjustTimestamp.value = data.detected_timestamp.toFixed(1);
+  confirmDownloadBtn.href = data.clip_url;
+  confirmDownloadBtn.setAttribute('download', '');
+  currentSourceFile = data.source_file;
+  clipModal.classList.add('visible');
+}
+
+closeModalBtn.addEventListener('click', () => {
+  clipModal.classList.remove('visible');
+  clipPreview.pause();
+});
+
+recutBtn.addEventListener('click', async () => {
+  if (!currentSourceFile) return;
+  recutBtn.disabled = true;
+  recutBtn.textContent = 'Cutting...';
+  try {
+    const res = await fetch('/api/re-clip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source_file: currentSourceFile,
+        timestamp: parseFloat(adjustTimestamp.value)
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Re-cut failed');
+    clipPreview.src = data.clip_url;
+    confirmDownloadBtn.href = data.clip_url;
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    recutBtn.disabled = false;
+    recutBtn.textContent = 'Re-cut';
+  }
+});
 </script>
 </body>
 </html>

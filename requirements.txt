@@ -1,3 +1,5 @@
 flask
 yt-dlp
 gunicorn
+opencv-python-headless
+google-generativeai

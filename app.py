@@ -139,25 +139,30 @@ def detect_cart_moment(video_path):
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY is not configured on the server")
 
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
 
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    client = genai.Client(api_key=GEMINI_API_KEY)
 
     samples, duration = extract_sample_frames(video_path, num_frames=10)
     if not samples:
         return None, duration
 
-    parts = ["Here are frames sampled evenly across a shopping-haul video, "
-             "in order, each labeled with its timestamp in seconds. "
-             "Reply with ONLY the timestamp (a number) of the single frame "
-             "that best shows a person placing a product into a shopping "
-             "cart or basket. If none show this clearly, reply with 'none'."]
+    contents = ["Here are frames sampled evenly across a shopping-haul video, "
+                "in order, each labeled with its timestamp in seconds. "
+                "Reply with ONLY the timestamp (a number) of the single frame "
+                "that best shows a person placing a product into a shopping "
+                "cart or basket. If none show this clearly, reply with 'none'."]
     for ts, b64 in samples:
-        parts.append(f"Timestamp: {ts:.1f}s")
-        parts.append({"mime_type": "image/jpeg", "data": b64})
+        contents.append(f"Timestamp: {ts:.1f}s")
+        contents.append(types.Part.from_bytes(
+            data=base64.b64decode(b64), mime_type="image/jpeg"
+        ))
 
-    response = model.generate_content(parts)
+    response = client.models.generate_content(
+        model="gemini-3.5-flash-lite",
+        contents=contents,
+    )
     text = (response.text or "").strip().lower()
 
     if "none" in text:

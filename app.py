@@ -142,7 +142,7 @@ def detect_cart_moment(video_path):
     import google.generativeai as genai
 
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash-lite")
 
     samples, duration = extract_sample_frames(video_path, num_frames=10)
     if not samples:

@@ -45,45 +45,6 @@ def base_ydl_opts():
     }
 
 
-@app.route("/api/search", methods=["POST"])
-def search_videos():
-    """Given a search term and a count, return a list of matching TikTok
-    videos (title/thumbnail/uploader/url) using yt-dlp's built-in TikTok
-    search support (the 'tiktoksearchN:' prefix)."""
-    data = request.get_json(force=True)
-    query = (data or {}).get("query", "").strip()
-    count = int((data or {}).get("count", 10))
-    count = max(1, min(count, 30))  # keep it sane -- 1 to 30 results
-
-    if not query:
-        return jsonify({"error": "No search term provided"}), 400
-
-    search_url = f"tiktoksearch{count}:{query}"
-
-    ydl_opts = base_ydl_opts()
-    ydl_opts["extract_flat"] = True  # don't fetch full video details yet, just the list
-
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            result = ydl.extract_info(search_url, download=False)
-    except Exception as e:
-        return jsonify({"error": f"Search failed: {str(e)}"}), 400
-
-    entries = (result or {}).get("entries", []) or []
-    videos = []
-    for entry in entries:
-        if not entry:
-            continue
-        videos.append({
-            "url": entry.get("url") or entry.get("webpage_url"),
-            "title": entry.get("title"),
-            "thumbnail": entry.get("thumbnail"),
-            "uploader": entry.get("uploader"),
-            "duration": entry.get("duration"),
-        })
-
-    return jsonify({"videos": videos})
-
 
 @app.route("/")
 def index():

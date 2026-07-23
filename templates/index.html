@@ -211,21 +211,10 @@
 <body>
   <div class="container">
     <h1>Video Downloader</h1>
-    <p class="subtitle">Search TikTok, or paste a TikTok/Twitter (X) link, to download HD videos.</p>
+    <p class="subtitle">Paste a TikTok/Twitter (X) link to download the HD video, with an optional auto-clip for cart moments.</p>
 
     <div class="input-row">
-      <input type="text" id="searchInput" placeholder="Search TikTok, e.g. tesco haul...">
-      <input type="number" id="searchCount" value="10" min="1" max="30" style="width:70px; flex:none;" title="Number of results">
-      <button id="searchBtn">Search</button>
-    </div>
-
-    <div class="status" id="searchStatus"></div>
-    <div id="searchResults" class="search-results"></div>
-
-    <hr style="border-color:#333; margin: 28px 0;">
-
-    <div class="input-row">
-      <input type="text" id="urlInput" placeholder="...or paste a TikTok/Twitter link here">
+      <input type="text" id="urlInput" placeholder="Paste a TikTok/Twitter link here...">
       <button id="goBtn">Fetch</button>
     </div>
 
@@ -268,116 +257,6 @@ const metaEl = document.getElementById('meta');
 const downloadBtn = document.getElementById('downloadBtn');
 
 let currentUrl = '';
-
-const searchInput = document.getElementById('searchInput');
-const searchCount = document.getElementById('searchCount');
-const searchBtn = document.getElementById('searchBtn');
-const searchStatus = document.getElementById('searchStatus');
-const searchResults = document.getElementById('searchResults');
-
-searchBtn.addEventListener('click', runSearch);
-searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') runSearch(); });
-
-async function runSearch() {
-  const query = searchInput.value.trim();
-  const count = parseInt(searchCount.value, 10) || 10;
-  if (!query) return;
-
-  searchResults.innerHTML = '';
-  setSearchStatus('Searching...');
-  searchBtn.disabled = true;
-
-  try {
-    const res = await fetch('/api/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, count })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Search failed');
-
-    if (!data.videos || data.videos.length === 0) {
-      setSearchStatus('No results found.');
-      return;
-    }
-
-    setSearchStatus(`Found ${data.videos.length} video(s).`);
-    renderResults(data.videos);
-  } catch (err) {
-    setSearchStatus(err.message, true);
-  } finally {
-    searchBtn.disabled = false;
-  }
-}
-
-function renderResults(videos) {
-  searchResults.innerHTML = '';
-  videos.forEach((v) => {
-    const card = document.createElement('div');
-    card.className = 'result-card';
-
-    const img = document.createElement('img');
-    img.src = v.thumbnail || '';
-    img.alt = '';
-
-    const info = document.createElement('div');
-    info.className = 'info';
-    const title = document.createElement('div');
-    title.className = 'r-title';
-    title.textContent = v.title || 'TikTok video';
-    const meta = document.createElement('div');
-    meta.className = 'r-meta';
-    meta.textContent = v.uploader ? `@${v.uploader}` : '';
-    info.appendChild(title);
-    info.appendChild(meta);
-
-    const btn = document.createElement('button');
-    btn.textContent = 'Download';
-    btn.addEventListener('click', () => downloadFromCard(v.url, btn));
-
-    const clipBtn = document.createElement('button');
-    clipBtn.textContent = 'Auto-Clip';
-    clipBtn.style.background = '#333';
-    clipBtn.style.color = 'var(--text)';
-    clipBtn.style.border = 'none';
-    clipBtn.style.borderRadius = '8px';
-    clipBtn.addEventListener('click', () => runAutoClip(v.url, clipBtn));
-
-    card.appendChild(img);
-    card.appendChild(info);
-    card.appendChild(btn);
-    card.appendChild(clipBtn);
-    searchResults.appendChild(card);
-  });
-}
-
-async function downloadFromCard(url, btn) {
-  btn.disabled = true;
-  const originalText = btn.textContent;
-  btn.textContent = 'Downloading...';
-
-  try {
-    const res = await fetch('/api/download', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Download failed');
-    window.location.href = data.download_url;
-    btn.textContent = 'Done';
-  } catch (err) {
-    btn.textContent = 'Failed';
-    setSearchStatus(err.message, true);
-  } finally {
-    setTimeout(() => { btn.disabled = false; btn.textContent = originalText; }, 2000);
-  }
-}
-
-function setSearchStatus(msg, isError = false) {
-  searchStatus.textContent = msg;
-  searchStatus.className = 'status' + (isError ? ' error' : '');
-}
 
 // Auto-fetch info when a link is pasted
 urlInput.addEventListener('paste', () => {
